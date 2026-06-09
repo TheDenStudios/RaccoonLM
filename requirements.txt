@@ -1,0 +1,14 @@
+# RaccoonLM v2 — Backend
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+ollama>=0.4.0
+httpx>=0.28.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+psutil>=6.0.0
+
+# Internet plugin
+beautifulsoup4>=4.12.0
+requests>=2.32.0
+lxml>=5.0.0
+huggingface_hub==1.18.0
