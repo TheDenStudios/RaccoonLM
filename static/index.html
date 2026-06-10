@@ -40,7 +40,7 @@ Phase 2 moved API, Hardware, Prompt, Hub, Downloads, and Inference controls into
 
 <button id="setbtn" onclick="openSettings()" title="Settings">⚙</button>
 <div id="sm" onclick="if(event.target.id==='sm')closeSettings()"><div class="smb">
-<aside class="smt"><h2>⚙ Settings</h2><button class="on" data-tab="models" onclick="setSettingsTab('models')">🤖 Models</button><button data-tab="inference" onclick="setSettingsTab('inference')">⚙ Inference</button><button data-tab="providers" onclick="setSettingsTab('providers')">🔌 Providers</button><button data-tab="prompt" onclick="setSettingsTab('prompt')">📝 Prompt</button><button data-tab="hub" onclick="setSettingsTab('hub')">🔍 Hub</button><button data-tab="endpoint" onclick="setSettingsTab('endpoint')">🌐 API</button></aside>
+<aside class="smt"><h2>⚙ Settings</h2><button class="on" data-tab="models" onclick="setSettingsTab('models')">🤖 Models</button><button data-tab="inference" onclick="setSettingsTab('inference')">⚙ Inference</button><button data-tab="providers" onclick="setSettingsTab('providers')">🔌 Providers</button><button data-tab="hardware" onclick="setSettingsTab('hardware')">🖥️ Hardware</button><button data-tab="runtime" onclick="setSettingsTab('runtime')">⏱️ Runtime</button><button data-tab="prompt" onclick="setSettingsTab('prompt')">📝 Prompt</button><button data-tab="hub" onclick="setSettingsTab('hub')">🔍 Hub</button><button data-tab="endpoint" onclick="setSettingsTab('endpoint')">🌐 API</button></aside>
 <main class="smc"><div class="smh"><h2 id="smtitle">Models</h2><button class="xbtn" onclick="closeSettings()">✕</button></div>
 <div id="tab-models" class="stab on"><div id="model-content"></div></div>
 <div id="tab-inference" class="stab"><div class="settings-card"><h3>⚙️ Inference</h3>
@@ -49,6 +49,9 @@ Phase 2 moved API, Hardware, Prompt, Hub, Downloads, and Inference controls into
 <div class="sl"><span>Court</span><span>Long</span></div>
 <div class="muted">These values are sent with each streaming chat request.</div></div></div>
 <div id="tab-providers" class="stab"><div class="settings-grid">
+<div class="settings-card"><h3>🔌 Provider Health</h3><div class="muted">Ollama: <code>http://localhost:11434</code><br>LM Studio: <code>http://localhost:1234</code><br><br>Use the Models tab to select the active provider and model.</div></div>
+</div></div>
+<div id="tab-hardware" class="stab"><div class="settings-grid">
 <div class="settings-card" id="hw-section"><h3>🖥️ Hardware</h3>
 <div id="hw-status"><span style="color:var(--dim);font-size:11px">Détection...</span></div>
 <div id="hw-controls" style="display:none">
@@ -62,8 +65,20 @@ Phase 2 moved API, Hardware, Prompt, Hub, Downloads, and Inference controls into
 <input type="range" id="gpu-layers" min="0" max="99" value="0">
 <div class="slider-labels"><span id="sl-l">CPU</span><span id="gpu-layers-max">Max: 0</span></div></div>
 <div id="hw-info-card" class="hw-info"></div></div></div>
-<div class="settings-card"><h3>🔌 Provider Health</h3><div class="muted">Ollama: <code>http://localhost:11434</code><br>LM Studio: <code>http://localhost:1234</code><br><br>Use the Models tab to select the active provider and model.</div></div>
 </div></div>
+<div id="tab-runtime" class="stab"><div class="settings-card"><h3>⏱️ Runtime</h3>
+<label>🧵 CPU Threads: <span id="ntv">4</span></label>
+<input type="range" id="num-threads" min="1" max="32" step="1" value="4" oninput="document.getElementById('ntv').textContent=this.value">
+<div class="sl"><span>Éco</span><span>Turbo</span></div>
+<label>📦 Batch size: <span id="bsv">512</span></label>
+<input type="range" id="batch-size" min="64" max="2048" step="64" value="512" oninput="document.getElementById('bsv').textContent=this.value">
+<div class="sl"><span>Faible</span><span>Élevé</span></div>
+<label>🔄 Context overflow</label>
+<select id="ctx-overflow" style="width:100%;padding:4px;border-radius:4px;background:var(--bg);border:1px solid var(--border);color:var(--fg)">
+<option value="truncate" selected>Truncate oldest</option>
+<option value="stop">Stop generation</option>
+</select>
+<div class="muted">Applied when the context window is full.</div></div></div>
 <div id="tab-prompt" class="stab"><div class="settings-card"><h3>📝 System Prompt</h3>
 <select id="ps" onchange="selP()"><option value="__raccoon__" selected>🦝 Raccoon</option><option value="__custom__">✏️ Custom</option></select>
 <textarea id="sp" rows="8" placeholder="Entre un system prompt..." style="font-size:11px"></textarea>
