@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""RaccoonLM v2 — Lightweight Ollama API Wrapper
+"""RaccoonLM v2 — Standalone local AI model manager (direct llama.cpp GGUF)
 
-A minimal local AI model manager that wraps Ollama with:
+A self-hosted alternative to Ollama/LM Studio:
 - REST API on port 5555
-- Model management (list/load/unload)
-- Chat completion with tool support
+- Direct GGUF model loading via llama-server
+- Chat completion with tool/plugin support
 - Internet plugin (web search + fetch)
-- Health endpoint for watchdog monitoring
+- Browser chat UI
 
 Environment variables (RACCOONLM_ prefix):
-  HOST          — bind address (default: 0.0.0.0)
-  PORT          — listen port (default: 5555)
-  OLLAMA_HOST   — Ollama server URL (default: http://localhost:11434)
-  DEFAULT_MODEL — default model name (default: qwen3:4b)
-  N_CTX         — context window size (default: 8192)
-  INTERNET_PLUGIN — enable internet plugin (default: True)
-  DEBUG         — debug mode (default: False)
+  HOST                 — bind address (default: 0.0.0.0)
+  PORT                 — listen port (default: 5555)
+  LLAMA_CPP_HOST       — llama-server URL (default: http://localhost:8080)
+  LLAMA_CPP_COMMAND    — llama-server binary path (default: llama-server)
+  LLAMA_CPP_MODEL_DIRS — extra GGUF scan directories (: separated)
+  LLAMA_CPP_GPU_LAYERS — GPU layers (default: 999)
+  INTERNET_PLUGIN      — enable internet plugin (default: True)
+  DEBUG                — debug mode (default: False)
 """
 
 import logging
@@ -47,7 +48,7 @@ async def lifespan(app: FastAPI):
     log.info(f"║  Host: {settings.host:<24}       ║")
     log.info(f"║  Port: {settings.port:<24}       ║")
     log.info(f"║  Model: {get_default_model():<23} ║")
-    log.info(f"║  Ollama: {settings.ollama_host:<22} ║")
+    log.info(f"║  llama.cpp: {settings.llama_cpp_host:<20} ║")
     log.info(f"║  Internet Plugin: {'ON' if settings.internet_plugin else 'OFF':<14}    ║")
     log.info("╚═══════════════════════════════════════════╝")
     init_registry()
@@ -67,7 +68,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="RaccoonLM v2",
-    description="Local AI Model Manager — Ollama wrapper",
+    description="Standalone Local AI Model Manager — direct llama.cpp GGUF",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -102,11 +103,10 @@ def main():
     signal.signal(signal.SIGTERM, _signal_handler)
 
     uvicorn.run(
-        "raccoonlm.main:app",
+        app,
         host=settings.host,
         port=settings.port,
-        reload=False,
-        log_level="info",
+        log_level="debug" if settings.debug else "info",
     )
 
 

@@ -1,10 +1,9 @@
-"""RaccoonLM v2 — System: hardware, resources, network, prompts, plugins list"""
+"""RaccoonLM v2 — System: hardware, resources, prompts, plugins list"""
 
 import subprocess
 from fastapi import APIRouter, HTTPException
 
 from raccoonlm.core import conversations as conv
-from raccoonlm.core.network import check_ollama_connectivity, get_connectivity_status, is_online
 from raccoonlm.api.core import _current_model, get_active_plugins
 
 system = APIRouter()
@@ -32,8 +31,6 @@ async def resources():
     from raccoonlm.core.cache import get_vram
     vram, vram_total = get_vram(gb=True)
 
-    online = await check_ollama_connectivity()
-
     return {
         "cpu": cpu,
         "ram_pct": ram_pct,
@@ -42,17 +39,15 @@ async def resources():
         "vram": vram if vram else None,
         "vram_total": vram_total if vram_total else None,
         "model": _current_model or "—",
-        "ollama": "connected" if online else "unreachable",
         "plugins": get_active_plugins(),
-        "mode": "online" if online else "auto-hosting",
+        "mode": "online",
     }
 
 
 # ── Network status ──
 @system.get("/api/network")
 async def network_status():
-    await check_ollama_connectivity()
-    return get_connectivity_status()
+    return {"online": True, "mode": "online"}
 
 
 # ── Plugins list ──

@@ -8,10 +8,9 @@ from pydantic import BaseModel
 
 from raccoonlm.config import get_default_model
 from raccoonlm.core.schemas import ChatRequest
-from raccoonlm.core.llm import chat_sync, lmstudio_chat_sync, llamacpp_chat_sync
+from raccoonlm.core.llm import llamacpp_chat_sync
 from raccoonlm.core import conversations as conv
 from raccoonlm.core.streaming import stream_chat
-from raccoonlm.core.network import check_ollama_connectivity, get_auto_response
 from raccoonlm.api.core import get_plugin, get_all_tools, _plugins
 import raccoonlm.api.core as core_state
 
@@ -23,15 +22,6 @@ chat = APIRouter()
 async def chat_endpoint(request: ChatRequest):
     model = request.model or core_state._current_model or get_default_model()
 
-    if core_state._current_provider not in ("lmstudio", "llamacpp") and not await check_ollama_connectivity():
-        return {
-            "model": model,
-            "message": {"role": "assistant", "content": get_auto_response("default")},
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0},
-            "done": True,
-            "mode": "auto-hosting",
-        }
-
     msgs = [m.model_dump() for m in request.messages]
     if request.system_prompt:
         msgs.insert(0, {"role": "system", "content": request.system_prompt})
@@ -39,50 +29,15 @@ async def chat_endpoint(request: ChatRequest):
     tools = get_all_tools()
 
     try:
-        if core_state._current_provider in ("lmstudio", "llamacpp"):
-            response = await (lmstudio_chat_sync if core_state._current_provider == "lmstudio" else llamacpp_chat_sync)(model, msgs, request.temperature, request.options)
-            return {
-                "model": model,
-                "message": response["message"],
-                "usage": response["usage"],
-                "done": True,
-                "provider": core_state._current_provider,
-            }
-
-        response = await chat_sync(model, msgs, tools, request.temperature, request.options)
-
-        if response.message.tool_calls:
-            for tc in response.message.tool_calls:
-                plugin = get_plugin(tc.function.name.split("_")[0]) if "_" in tc.function.name else None
-                if not plugin:
-                    for p in _plugins.values():
-                        defs = p.get_tool_definitions()
-                        if any(d["function"]["name"] == tc.function.name for d in defs):
-                            plugin = p
-                            break
-                if plugin:
-                    result = await plugin.execute_tool(tc.function.name, tc.function.arguments)
-                    msgs.append({"role": "assistant", "content": response.message.content or json.dumps(
-                        {"tool_call": tc.function.name, "args": tc.function.arguments})})
-                    msgs.append({"role": "tool", "content": result})
-                    response = await chat_sync(model, msgs, [], request.temperature, request.options)
-
+        response = await llamacpp_chat_sync(model, msgs, request.temperature, request.options)
         return {
             "model": model,
-            "message": {"role": "assistant", "content": response.message.content or ""},
-            "usage": {"prompt_tokens": getattr(response, "prompt_eval_count", 0),
-                       "completion_tokens": getattr(response, "eval_count", 0)},
+            "message": response["message"],
+            "usage": response["usage"],
             "done": True,
+            "provider": core_state._current_provider,
         }
     except Exception as e:
-        if not await check_ollama_connectivity():
-            return {
-                "model": model,
-                "message": {"role": "assistant", "content": get_auto_response("default")},
-                "usage": {"prompt_tokens": 0, "completion_tokens": 0},
-                "done": True,
-                "mode": "auto-hosting",
-            }
         raise HTTPException(500, str(e))
 
 
@@ -148,44 +103,15 @@ async def conv_chat(cid: str, request: ChatRequest):
     tools = get_all_tools()
 
     try:
-        if core_state._current_provider in ("lmstudio", "llamacpp"):
-            response = await (lmstudio_chat_sync if core_state._current_provider == "lmstudio" else llamacpp_chat_sync)(model, msgs, request.temperature, request.options)
-            conv.add_messages(cid, user_msg, response["message"]["content"],
-                              response["usage"]["prompt_tokens"] + response["usage"]["completion_tokens"])
-            return {
-                "model": model, "conversation_id": cid,
-                "message": response["message"],
-                "usage": response["usage"],
-                "done": True,
-                "provider": core_state._current_provider,
-            }
-
-        response = await chat_sync(model, msgs, tools, request.temperature, request.options)
-        if response.message.tool_calls:
-            for tc in response.message.tool_calls:
-                plugin = get_plugin(tc.function.name.split("_")[0]) if "_" in tc.function.name else None
-                if not plugin:
-                    for p in _plugins.values():
-                        defs = p.get_tool_definitions()
-                        if any(d["function"]["name"] == tc.function.name for d in defs):
-                            plugin = p
-                            break
-                if plugin:
-                    result = await plugin.execute_tool(tc.function.name, tc.function.arguments)
-                    msgs.append({"role": "assistant", "content": response.message.content or json.dumps(
-                        {"tool_call": tc.function.name, "args": tc.function.arguments})})
-                    msgs.append({"role": "tool", "content": result})
-                    response = await chat_sync(model, msgs, [], request.temperature, request.options)
-
-        conv.add_messages(cid, user_msg, response.message.content or "",
-                          getattr(response, "prompt_eval_count", 0) + getattr(response, "eval_count", 0))
-
+        response = await llamacpp_chat_sync(model, msgs, request.temperature, request.options)
+        conv.add_messages(cid, user_msg, response["message"]["content"],
+                          response["usage"]["prompt_tokens"] + response["usage"]["completion_tokens"])
         return {
             "model": model, "conversation_id": cid,
-            "message": {"role": "assistant", "content": response.message.content or ""},
-            "usage": {"prompt_tokens": getattr(response, "prompt_eval_count", 0),
-                       "completion_tokens": getattr(response, "eval_count", 0)},
+            "message": response["message"],
+            "usage": response["usage"],
             "done": True,
+            "provider": core_state._current_provider,
         }
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -198,37 +124,32 @@ async def patch_conversation(cid: str, title: str = None, archived: bool = None)
     if not c:
         raise HTTPException(404, "Not found")
     conn = conv._conn()
-    if title is not None:
-        conn.execute("UPDATE conversations SET title=? WHERE id=?", (title, cid))
-    if archived is not None:
-        conn.execute("UPDATE conversations SET archived=? WHERE id=?", (1 if archived else 0, cid))
+    cur = conn.execute("UPDATE conversations SET title = COALESCE(?, title), archived = COALESCE(?, archived) WHERE id = ?",
+                       (title, int(archived) if archived is not None else None, cid))
     conn.commit()
-    return conv.get(cid)
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Not found")
+    return {"status": "ok"}
 
 
-# ── OpenAI Endpoint ──
-_openai_endpoint = None
-
-
+# ── OpenAI-compatible endpoint toggle ──
 @chat.post("/api/endpoint/start")
-async def endpoint_start(port: int = 5556):
-    global _openai_endpoint
-    from raccoonlm.core.openai_endpoint import start as ep_start
-    result = ep_start(port, core_state._current_model or get_default_model())
-    _openai_endpoint = result
-    return result
+async def start_endpoint(port: int = 5556):
+    try:
+        from raccoonlm.core.openai_endpoint import start as ep_start
+        import threading
+        t = threading.Thread(target=ep_start, args=(port, get_default_model()), daemon=True)
+        t.start()
+        return {"status": "started", "url": f"http://localhost:{port}/v1"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @chat.post("/api/endpoint/stop")
-async def endpoint_stop():
-    global _openai_endpoint
-    from raccoonlm.core.openai_endpoint import stop as ep_stop
-    result = ep_stop()
-    _openai_endpoint = None
-    return result
-
-
-@chat.get("/api/endpoint/status")
-async def endpoint_status():
-    from raccoonlm.core.openai_endpoint import is_running
-    return {"running": is_running(), "port": 5556 if is_running() else None}
+async def stop_endpoint():
+    try:
+        from raccoonlm.core.openai_endpoint import stop as ep_stop
+        ep_stop()
+        return {"status": "stopped"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

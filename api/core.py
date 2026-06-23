@@ -5,7 +5,6 @@ from fastapi import APIRouter
 from starlette.responses import RedirectResponse
 
 from raccoonlm.config import settings
-from raccoonlm.core.llm import ollama_list
 from raccoonlm.plugins import InternetPlugin
 from raccoonlm.plugins.base import Plugin
 from raccoonlm.core.models import get_last_model
@@ -49,7 +48,7 @@ def get_active_plugins() -> list[str]:
 # ── State ──
 _start = time.time()
 _current_model: str = ""
-_current_provider: str = "ollama"
+_current_provider: str = "llamacpp"
 
 
 # ── Root ──
@@ -63,16 +62,11 @@ async def index():
 async def health():
     plugin_list = get_active_plugins()
     model = _current_model if _current_model else "—"
-    try:
-        await ollama_list()
-        ollama_ok = "connected"
-    except Exception:
-        ollama_ok = "unreachable"
     return {
         "status": "ok",
         "model": model,
-        "ollama": ollama_ok,
+        "provider": _current_provider,
         "uptime": time.time() - _start,
         "plugins": plugin_list,
-        "mode": "online" if ollama_ok == "connected" else "auto-hosting",
+        "mode": "online",
     }

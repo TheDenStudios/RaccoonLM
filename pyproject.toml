@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "raccoonlm"
 version = "2.0.0"
-description = "Local AI Model Manager — Ollama wrapper"
+description = "Standalone local AI model manager — direct llama.cpp GGUF"
 requires-python = ">=3.11"
 
 [project.scripts]
