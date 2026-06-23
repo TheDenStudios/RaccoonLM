@@ -323,21 +323,25 @@ def get_registered_models() -> list[dict]:
 
 
 def get_all_models() -> list[dict]:
-    """Get ALL models from all providers, deduplicated."""
+    """Get ALL models from all providers, deduplicated by normalized name."""
     seen = set()
     all_models = []
 
-    # llama.cpp direct GGUF models
+    def norm(name):
+        return name.lower().replace('_', '-').replace('.', '-')
+
+    # llama.cpp direct GGUF models (prefer these as they have real paths)
     for m in get_llamacpp_models():
-        key = f"{m.get('provider')}:{m.get('path') or m['name']}"
-        if key not in seen:
+        key = norm(m.get('name', ''))
+        if key and key not in seen:
             seen.add(key)
             all_models.append(m)
 
-    # Registered models (HF imports, etc.)
+    # Registered models (HF imports, manual) — skip if already seen
     for m in get_registered_models():
-        if m["name"] not in seen:
-            seen.add(m["name"])
+        key = norm(m.get('name', ''))
+        if key and key not in seen:
+            seen.add(key)
             all_models.append(m)
 
     return all_models
