@@ -214,7 +214,7 @@ def load_llamacpp_model(model_name: str) -> bool:
 
 
 def unload_llamacpp_model() -> bool:
-    """Stop the llama-server process started by RaccoonLM."""
+    """Stop the llama-server process started by RaccoonLM, or any on port 8080."""
     global _LLAMA_CPP_PROC, _LLAMA_CPP_MODEL_PATH
     if _LLAMA_CPP_PROC and _LLAMA_CPP_PROC.poll() is None:
         try:
@@ -223,6 +223,20 @@ def unload_llamacpp_model() -> bool:
         except Exception:
             try:
                 _LLAMA_CPP_PROC.kill()
+            except Exception:
+                pass
+    else:
+        # Fallback: kill any llama-server on our port
+        import subprocess
+        try:
+            port = settings.llama_cpp_host.rstrip("/").split(":")[-1]
+            r = subprocess.run(
+                ["fuser", "-k", f"{port}/tcp"],
+                capture_output=True, timeout=5
+            )
+        except Exception:
+            try:
+                subprocess.run(["pkill", "-f", "llama-server"], capture_output=True, timeout=5)
             except Exception:
                 pass
     _LLAMA_CPP_PROC = None
