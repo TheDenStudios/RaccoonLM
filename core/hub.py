@@ -135,7 +135,7 @@ def start_download(repo_id: str, filename: str) -> dict:
             _downloads[dl_id]["status"] = "downloading"
             local_path = hf_hub_download(
                 repo_id=repo_id, filename=filename,
-                resume=True, local_files_only=False,
+                local_files_only=False,
             )
             _downloads[dl_id]["path"] = local_path
             _downloads[dl_id]["progress"] = 100
@@ -143,18 +143,25 @@ def start_download(repo_id: str, filename: str) -> dict:
             # Extract model name from filename
             model_name = re.sub(r'\.gguf$', '', os.path.basename(filename), flags=re.I)
             model_name = model_name.lower().replace('_', '-').replace(' ', '-')
-            # Remove leading/trailing dashes
             model_name = model_name.strip('-')
-            # Limit length
             if len(model_name) > 60:
                 model_name = model_name[:60]
 
-            # Auto-import into Ollama via Modelfile
-            _downloads[dl_id]["status"] = "importing"
-            _import_to_ollama(model_name, local_path)
+            # Register model for direct llama.cpp use
+            try:
+                from raccoonlm.core.models import register_model
+                sz = os.path.getsize(local_path)
+                def _fmt(n):
+                    if n < 1024: return f"{n}B"
+                    if n < 1024**2: return f"{n/1024:.1f}KB"
+                    if n < 1024**3: return f"{n/1024**2:.1f}MB"
+                    return f"{n/1024**3:.1f}GB"
+                register_model(model_name, "llamacpp", source="llamacpp", path=local_path, gguf_path=local_path,
+                               size=sz, size_display=_fmt(sz))
+            except Exception:
+                pass
 
             _downloads[dl_id]["status"] = "completed"
-            _downloads[dl_id]["ollama_name"] = model_name
 
         except Exception as e:
             _downloads[dl_id]["status"] = "error"
