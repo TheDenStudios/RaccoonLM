@@ -20,6 +20,7 @@ models_router = APIRouter()
 class ModelLoadRequest(BaseModel):
     model_name: str = ""
     provider: str = "llamacpp"
+    gpu_layers: int = 0  # 0 = use default from settings
 
 
 def get_current_model_name() -> str:
@@ -70,7 +71,18 @@ async def load_model(req: ModelLoadRequest):
         if core_state._current_provider == "llamacpp":
             unload_llamacpp_model()
 
+    # Override GPU layers if specified
+    if req.gpu_layers > 0:
+        old_layers = settings.llama_cpp_gpu_layers
+        settings.llama_cpp_gpu_layers = req.gpu_layers
+    else:
+        old_layers = None
+
     success = load_llamacpp_model(model_name)
+
+    if old_layers is not None:
+        settings.llama_cpp_gpu_layers = old_layers
+
     if success:
         core_state._current_model = model_name
         core_state._current_provider = "llamacpp"
