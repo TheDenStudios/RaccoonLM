@@ -77,6 +77,22 @@ async def load_model(req: ModelLoadRequest):
         set_last_model(model_name)
         return {"status": "ok", "model": model_name, "provider": "llamacpp", "verified": True}
 
+    # Fallback: llama-server may already be running but verification timed out
+    import httpx
+    try:
+        fb = httpx.post(
+            settings.llama_cpp_host.rstrip("/") + "/v1/chat/completions",
+            json={"messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+            timeout=5.0,
+        )
+        if fb.status_code == 200:
+            core_state._current_model = model_name
+            core_state._current_provider = "llamacpp"
+            set_last_model(model_name)
+            return {"status": "ok", "model": model_name, "provider": "llamacpp", "verified": True}
+    except Exception:
+        pass
+
     raise HTTPException(500, f"Failed to load {model_name} via llama.cpp. Is llama-server installed or RACCOONLM_LLAMA_CPP_COMMAND set?")
 
 

@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     llama_cpp_host: str = "http://localhost:8080"
     llama_cpp_command: str = "llama-server"
     llama_cpp_model_dirs: str = ""
-    llama_cpp_gpu_layers: int = 999
+    llama_cpp_gpu_layers: int = 12
 
     # Plugins
     internet_plugin: bool = True

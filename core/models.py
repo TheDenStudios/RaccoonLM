@@ -180,12 +180,28 @@ def load_llamacpp_model(model_name: str) -> bool:
         time.sleep(0.5)
 
     try:
-        r = httpx.post(
-            _llamacpp_url("/v1/chat/completions"),
-            json={"model": model_name, "messages": [{"role": "user", "content": "hello"}], "max_tokens": 1, "temperature": 0},
-            timeout=60.0,
-        )
-        if r.status_code == 200 and _llamacpp_chat_response_has_output(r.json()):
+        # Retry loop: model may still be loading (HTTP 503)
+        r = None
+        for attempt in range(120):
+            try:
+                r = httpx.post(
+                    _llamacpp_url("/v1/chat/completions"),
+                    json={"model": model_name, "messages": [{"role": "user", "content": "hello"}], "max_tokens": 1, "temperature": 0},
+                    timeout=30.0,
+                )
+                if r.status_code in (200, 503):
+                    if r.status_code == 200:
+                        break
+                    # Still loading, wait and retry
+                    time.sleep(2)
+                    continue
+            except httpx.TimeoutException:
+                time.sleep(2)
+                continue
+            except Exception:
+                time.sleep(1)
+                continue
+        if r and r.status_code == 200 and _llamacpp_chat_response_has_output(r.json()):
             invalidate_vram()
             register_model(model_name, "llamacpp", source="llamacpp", path=model_path, gguf_path=model_path, size=os.path.getsize(model_path), size_display=_fmt_bytes(os.path.getsize(model_path)))
             log.info(f"✅ llama.cpp model {model_name} verified")
