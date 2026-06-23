@@ -1,10 +1,10 @@
 # 🦝 RaccoonLM
 
-**A private, local-first AI model manager for Ollama and LM Studio.**
+**A private, local-first AI model manager.**
 
 RaccoonLM is a FastAPI-powered local LLM control center with a browser chat UI, model loading, streaming responses, conversation history, HuggingFace GGUF discovery/downloads, resource monitoring, plugin tools, and an optional OpenAI-compatible endpoint.
 
-It is designed for people who want a self-hosted LM Studio/OpenWebUI-style experience while keeping the stack lightweight and hackable: Python backend, SQLite storage, vanilla HTML/CSS/JS frontend.
+It is designed for people who want a self-hosted alternative experience while keeping the stack lightweight.
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-green)
 ![FastAPI](https://img.shields.io/badge/FastAPI-local%20API-green)
