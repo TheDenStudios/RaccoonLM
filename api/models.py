@@ -23,13 +23,27 @@ class ModelLoadRequest(BaseModel):
 
 
 def get_current_model_name() -> str:
-    """Get display model name without mutating _current_model."""
+    """Get display model name without mutating _current_model.
+
+    Returns '—' if no model is loaded and no valid model exists on disk.
+    """
+    from raccoonlm.core.models import _resolve_llamacpp_model_path, _find_gguf_models
     if core_state._current_model and core_state._current_model.strip():
         return core_state._current_model
     last = get_last_model()
     if last:
-        return last
-    return get_default_model()
+        if _resolve_llamacpp_model_path(last):
+            return last
+        for m in _find_gguf_models():
+            if m["name"] == last:
+                return last
+    # No loaded, last, or valid default model — show empty
+    default = get_default_model()
+    if default and default not in ("—", "qwen3:4b", "") and _resolve_llamacpp_model_path(default):
+        return default
+    for m in _find_gguf_models():
+        return m["name"]
+    return "—"
 
 
 # ── List all models ──
