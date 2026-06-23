@@ -2,7 +2,7 @@
 
 **A private, local-first AI model manager.**
 
-RaccoonLM is a FastAPI-powered local LLM control center with a browser chat UI, model loading, streaming responses, conversation history, HuggingFace GGUF discovery/downloads, resource monitoring, plugin tools, and an optional OpenAI-compatible endpoint.
+RaccoonLM is a FastAPI-powered local first AI Model Manager with a browser chat UI, model loading, streaming responses, conversation history, HuggingFace GGUF discovery/downloads, resource monitoring, plugin tools, and an optional OpenAI-compatible endpoint.
 
 It is designed for people who want a self-hosted alternative experience while keeping the stack lightweight.
 
@@ -10,6 +10,7 @@ It is designed for people who want a self-hosted alternative experience while ke
 ![FastAPI](https://img.shields.io/badge/FastAPI-local%20API-green)
 ![Ollama](https://img.shields.io/badge/Ollama-supported-green)
 ![LM Studio](https://img.shields.io/badge/LM%20Studio-supported-green)
+![llama.cpp](https://img.shields.io/badge/llama.cpp-direct%20GGUF-green)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
@@ -20,6 +21,7 @@ It is designed for people who want a self-hosted alternative experience while ke
 - **Multi-provider model management** — list and load models from:
   - Ollama (`http://localhost:11434`)
   - LM Studio local server (`http://localhost:1234`)
+  - llama.cpp `llama-server` direct GGUF loading (`http://localhost:8080`)
 - **Provider-first model selector** — bottom-left settings modal separates provider selection from model selection.
 - **Streaming chat** — Server-Sent Events token streaming with support for thinking/reasoning chunks.
 - **Conversation history** — persistent SQLite conversations with create, rename, delete, and reload support.
@@ -58,6 +60,7 @@ Main UI areas:
 | Backend | FastAPI + Uvicorn |
 | Local model backend | Ollama |
 | LM Studio integration | OpenAI-compatible local API |
+| llama.cpp integration | Direct `llama-server` OpenAI-compatible API + GGUF scanning |
 | Storage | SQLite + JSON model registry |
 | Frontend | Vanilla HTML/CSS/JS |
 | Streaming | Server-Sent Events |
@@ -110,6 +113,7 @@ raccoonlm/
 - At least one local model provider:
   - [Ollama](https://ollama.com/) for Ollama models
   - [LM Studio](https://lmstudio.ai/) with the local server enabled for LM Studio models
+  - [llama.cpp](https://github.com/ggml-org/llama.cpp) `llama-server` for direct GGUF loading
 
 Optional:
 
@@ -149,6 +153,13 @@ For LM Studio support:
 3. Start the local server.
 4. Confirm it responds on `http://localhost:1234/v1/models`.
 
+For direct llama.cpp support:
+
+1. Install or build `llama-server` from llama.cpp.
+2. Make sure `llama-server` is on `PATH`, or set `RACCOONLM_LLAMA_CPP_COMMAND=/absolute/path/to/llama-server`.
+3. Put `.gguf` files in a scanned folder such as `~/Downloads`, `~/Desktop`, LM Studio cache, HuggingFace cache, or set `RACCOONLM_LLAMA_CPP_MODEL_DIRS` to extra directories separated by `:` on Linux/macOS.
+4. In RaccoonLM settings, choose the `llama.cpp` provider and load a GGUF model. RaccoonLM starts `llama-server` on `http://localhost:8080` and verifies it with a tiny chat request.
+
 ---
 
 ## Running RaccoonLM
@@ -183,6 +194,10 @@ raccoonlm/.venv/bin/python -m raccoonlm.main
 | `RACCOONLM_HOST` | `0.0.0.0` | Bind address |
 | `RACCOONLM_PORT` | `5555` | Main FastAPI/UI port |
 | `RACCOONLM_OLLAMA_HOST` | `http://localhost:11434` | Ollama API URL |
+| `RACCOONLM_LLAMA_CPP_HOST` | `http://localhost:8080` | llama.cpp `llama-server` OpenAI-compatible URL |
+| `RACCOONLM_LLAMA_CPP_COMMAND` | `llama-server` | Command/path used to launch llama.cpp directly |
+| `RACCOONLM_LLAMA_CPP_MODEL_DIRS` | empty | Extra GGUF scan directories, separated by `:` |
+| `RACCOONLM_LLAMA_CPP_GPU_LAYERS` | `999` | GPU layers passed to `llama-server --n-gpu-layers` |
 | `RACCOONLM_DEFAULT_MODEL` | dynamic | Optional forced default model |
 | `RACCOONLM_INTERNET_PLUGIN` | `true` | Enable web search/fetch plugin |
 | `RACCOONLM_DEBUG` | `false` | Debug logging |

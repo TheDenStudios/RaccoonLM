@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     ollama_host: str = "http://localhost:11434"
     default_model: str = ""  # Empty = resolve dynamically via model registry
 
+    # llama.cpp direct provider
+    # RaccoonLM can talk directly to llama-server instead of routing through
+    # Ollama or LM Studio. Point llama_cpp_command to your llama-server binary.
+    llama_cpp_host: str = "http://localhost:8080"
+    llama_cpp_command: str = "llama-server"
+    llama_cpp_model_dirs: str = ""  # os.pathsep-separated extra GGUF scan dirs
+    llama_cpp_gpu_layers: int = 999
+
     # Plugins
     internet_plugin: bool = True
 

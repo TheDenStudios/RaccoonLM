@@ -5,7 +5,8 @@ from pydantic import BaseModel
 
 from raccoonlm.core.models import (
     get_all_models, get_last_model, set_last_model, load_ollama_model,
-    load_lmstudio_model, unload_ollama_model, check_model_loaded
+    load_lmstudio_model, load_llamacpp_model, unload_ollama_model,
+    unload_llamacpp_model, check_model_loaded
 )
 from raccoonlm.config import get_default_model, settings
 from raccoonlm.core.cache import invalidate_vram
@@ -53,7 +54,10 @@ async def load_model(req: ModelLoadRequest):
     # Auto-unload previous model before loading a new one
     if core_state._current_model and core_state._current_model != model_name:
         log.info(f"Unloading previous model: {core_state._current_model}")
-        unload_ollama_model(core_state._current_model)
+        if core_state._current_provider == "llamacpp":
+            unload_llamacpp_model()
+        elif core_state._current_provider == "ollama":
+            unload_ollama_model(core_state._current_model)
 
     if req.provider in ("ollama", ""):
         success = load_ollama_model(model_name)
@@ -72,6 +76,15 @@ async def load_model(req: ModelLoadRequest):
             set_last_model(model_name)
             return {"status": "ok", "model": model_name, "provider": "lmstudio", "verified": True}
         raise HTTPException(500, f"Failed to load {model_name} via LM Studio. Is LM Studio running on port 1234?")
+
+    if req.provider == "llamacpp":
+        success = load_llamacpp_model(model_name)
+        if success:
+            core_state._current_model = model_name
+            core_state._current_provider = "llamacpp"
+            set_last_model(model_name)
+            return {"status": "ok", "model": model_name, "provider": "llamacpp", "verified": True}
+        raise HTTPException(500, f"Failed to load {model_name} via llama.cpp. Is llama-server installed or RACCOONLM_LLAMA_CPP_COMMAND set?")
 
     raise HTTPException(400, f"Unknown provider: {req.provider}")
 
@@ -93,12 +106,15 @@ async def load_model_query(model_name: str = ""):
 async def unload_model():
     try:
         if core_state._current_model:
-            import httpx
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                await client.post(
-                    f"{settings.ollama_host}/api/generate",
-                    json={"model": core_state._current_model, "keep_alive": 0}
-                )
+            if core_state._current_provider == "llamacpp":
+                unload_llamacpp_model()
+            else:
+                import httpx
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    await client.post(
+                        f"{settings.ollama_host}/api/generate",
+                        json={"model": core_state._current_model, "keep_alive": 0}
+                    )
         core_state._current_model = ""
         invalidate_vram()
         return {"status": "ok", "message": "Model unloaded"}
@@ -125,8 +141,8 @@ async def model_load_status():
 async def local_models():
     try:
         models = get_all_models()
-        # Filter to local-only (Ollama + LM Studio), exclude registered-only
-        local = [m for m in models if m.get("source") in ("ollama", "lmstudio")]
+        # Filter to local-only (Ollama + LM Studio + direct llama.cpp), exclude registered-only
+        local = [m for m in models if m.get("source") in ("ollama", "lmstudio", "llamacpp") or m.get("provider") == "llamacpp"]
         return {"models": local}
     except Exception as e:
         return {"models": [], "error": str(e)}

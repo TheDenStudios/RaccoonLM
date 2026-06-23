@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from raccoonlm.config import get_default_model
 from raccoonlm.core.schemas import ChatRequest
-from raccoonlm.core.llm import chat_sync, lmstudio_chat_sync
+from raccoonlm.core.llm import chat_sync, lmstudio_chat_sync, llamacpp_chat_sync
 from raccoonlm.core import conversations as conv
 from raccoonlm.core.streaming import stream_chat
 from raccoonlm.core.network import check_ollama_connectivity, get_auto_response
@@ -23,7 +23,7 @@ chat = APIRouter()
 async def chat_endpoint(request: ChatRequest):
     model = request.model or core_state._current_model or get_default_model()
 
-    if core_state._current_provider != "lmstudio" and not await check_ollama_connectivity():
+    if core_state._current_provider not in ("lmstudio", "llamacpp") and not await check_ollama_connectivity():
         return {
             "model": model,
             "message": {"role": "assistant", "content": get_auto_response("default")},
@@ -39,15 +39,14 @@ async def chat_endpoint(request: ChatRequest):
     tools = get_all_tools()
 
     try:
-        if core_state._current_provider == "lmstudio":
-            # Route to LM Studio API
-            response = await lmstudio_chat_sync(model, msgs, request.temperature, request.options)
+        if core_state._current_provider in ("lmstudio", "llamacpp"):
+            response = await (lmstudio_chat_sync if core_state._current_provider == "lmstudio" else llamacpp_chat_sync)(model, msgs, request.temperature, request.options)
             return {
                 "model": model,
                 "message": response["message"],
                 "usage": response["usage"],
                 "done": True,
-                "provider": "lmstudio",
+                "provider": core_state._current_provider,
             }
 
         response = await chat_sync(model, msgs, tools, request.temperature, request.options)
@@ -149,9 +148,8 @@ async def conv_chat(cid: str, request: ChatRequest):
     tools = get_all_tools()
 
     try:
-        if core_state._current_provider == "lmstudio":
-            # Route to LM Studio API for conversation chat
-            response = await lmstudio_chat_sync(model, msgs, request.temperature, request.options)
+        if core_state._current_provider in ("lmstudio", "llamacpp"):
+            response = await (lmstudio_chat_sync if core_state._current_provider == "lmstudio" else llamacpp_chat_sync)(model, msgs, request.temperature, request.options)
             conv.add_messages(cid, user_msg, response["message"]["content"],
                               response["usage"]["prompt_tokens"] + response["usage"]["completion_tokens"])
             return {
@@ -159,7 +157,7 @@ async def conv_chat(cid: str, request: ChatRequest):
                 "message": response["message"],
                 "usage": response["usage"],
                 "done": True,
-                "provider": "lmstudio",
+                "provider": core_state._current_provider,
             }
 
         response = await chat_sync(model, msgs, tools, request.temperature, request.options)

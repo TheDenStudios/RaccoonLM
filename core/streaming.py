@@ -71,6 +71,47 @@ async def _lmstudio_raw_stream(model: str, messages: list, options: dict = None)
                 yield chunk
 
 
+async def _llamacpp_raw_stream(model: str, messages: list, options: dict = None) -> AsyncGenerator[dict, None]:
+    """Stream OpenAI-compatible chunks from llama.cpp llama-server as Ollama-like chunks."""
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "max_tokens": options.get("num_predict", 4096) if options else 4096,
+    }
+    if options and "temperature" in options:
+        payload["temperature"] = options["temperature"]
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        async with client.stream("POST", settings.llama_cpp_host.rstrip("/") + "/v1/chat/completions", json=payload) as resp:
+            if resp.status_code != 200:
+                body = await resp.aread()
+                raise RuntimeError(f"llama.cpp stream failed: HTTP {resp.status_code} {body.decode(errors='ignore')[:300]}")
+            async for line in resp.aiter_lines():
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("data:"):
+                    line = line[5:].strip()
+                if line == "[DONE]":
+                    yield {"done": True}
+                    return
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                choice = (data.get("choices") or [{}])[0]
+                delta = choice.get("delta") or {}
+                token = delta.get("content") or ""
+                chunk = {"message": {"content": token, "thinking": ""}, "done": False}
+                usage = data.get("usage") or {}
+                if usage:
+                    chunk["prompt_eval_count"] = usage.get("prompt_tokens", 0)
+                    chunk["eval_count"] = usage.get("completion_tokens", 0)
+                if choice.get("finish_reason"):
+                    chunk["done"] = True
+                yield chunk
+
+
 from raccoonlm.plugins.base import Plugin
 
 
@@ -125,6 +166,8 @@ async def stream_chat(model: str, messages: list, tools: list,
     try:
         if provider == "lmstudio":
             first_stream = _lmstudio_raw_stream(model, full_msgs, options)
+        elif provider == "llamacpp":
+            first_stream = _llamacpp_raw_stream(model, full_msgs, options)
         else:
             first_stream = _raw_stream(model, full_msgs, tools, options)
 
@@ -178,7 +221,8 @@ async def stream_chat(model: str, messages: list, tools: list,
         tool_calls = None
         turn_content = ""
         
-        async for chunk in _raw_stream(model, full_msgs, [], options):
+        followup_stream = _llamacpp_raw_stream(model, full_msgs, options) if provider == "llamacpp" else _raw_stream(model, full_msgs, [], options)
+        async for chunk in followup_stream:
             msg = chunk.get("message", {})
             if c := (msg.get("content", "") or ""):
                 turn_content += c
