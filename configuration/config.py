@@ -7,7 +7,14 @@ Import via:
 import os
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except Exception:  # pragma: no cover
+    class BaseSettings(dict):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            for k, v in kwargs.items():
+                setattr(self, k, v)
 
 
 class Settings(BaseSettings):

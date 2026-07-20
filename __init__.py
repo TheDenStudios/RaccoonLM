@@ -1,1 +1,2 @@
-"""RaccoonLM v2 — Local AI Model Manager (Ollama wrapper)"""
+# Top-level package for raccoonlm
+# Expose submodules if needed
